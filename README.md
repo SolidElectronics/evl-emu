@@ -1,10 +1,10 @@
 # evl-emu
 
-This project is designed to allow Home Assistant to integrate with a DSC IT-100 integration module.  As it stands, there is no native IT-100 integration in HA yet, and this could still be useful in a situation where you can't pass a serial port to HA and would prefer an IP-based solution.
+This project is designed to allow Home Assistant to integrate with a DSC IT-100 integration module.  As it stands, there is no native IT-100 integration in HA yet, and this could still be useful in a situation where you don't have a serial port available to HA and would prefer an IP-based solution.
 
 Fair warning, I haven’t tested this extensively and I offer no guarantees it will work, but I thought I’d share it in case it’s useful to someone. It’s written using the Python multiprocessing libraries so it spawns several processes that each perform one task. Ideally this would be rewritten in a cleaner way with asyncio but that’s currently beyond my ability.
 
-I have this running under Raspbian on a rPi1 with the DSC panel connected via a serial-USB adapter at /dev/ttyUSB0, and a Home Asssistant instance inside Docker on another server.
+I have this running under Raspbian on a rPi1 with the DSC panel connected via a serial-USB adapter at /dev/ttyUSB0, and a Home Asssistant instance inside Docker on another server.  You might want to use a udev rule or /dev/serial/by-id/whatever if you have multiple USB/Serial interfaces to ensure the correct one is used.
 
 Note: This requires the ‘pyserial’ module for interacting with the serial port.
 
