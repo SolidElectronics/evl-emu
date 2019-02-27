@@ -4,17 +4,17 @@ This project is designed to allow Home Assistant to integrate with a DSC IT-100 
 
 Fair warning, I haven’t tested this extensively and I offer no guarantees it will work, but I thought I’d share it in case it’s useful to someone. It’s written using the Python multiprocessing libraries so it spawns several processes that each perform one task. Ideally this would be rewritten in a cleaner way with asyncio but that’s currently beyond my ability.
 
-I have this running under Raspbian *On* a rPi1 with the DSC panel connected via a serial-USB adapter at /dev/ttyUSB0, and a Home Asssistant instance inside Docker *On* another server.  You might want to use a udev rule or /dev/serial/by-id/whatever if you have multiple USB/Serial interfaces to ensure the correct one is used.
+I have this running under Raspbian on a rPi1 with the DSC panel connected via a serial-USB adapter at /dev/ttyUSB0, and a Home Asssistant instance inside Docker on another server.  You might want to use a udev rule or /dev/serial/by-id/whatever if you have multiple USB/Serial interfaces to ensure the correct one is used.
 
 Note: This requires the ‘pyserial’ module for interacting with the serial port.
 
 
 ---
-### Setup *On* Raspbian (different server than HA is running on)
+### Setup on Raspbian (different server than HA is running on)
 
 #### Clone this repo
 
-Assuming user pi *On* Raspbian here.
+Assuming user pi on Raspbian here.
 
 ```
 cd $HOME
@@ -28,7 +28,7 @@ git clone https://github.com/SolidElectronics/evl-emu.git
 Change 'host' in envisalink.yaml to this system's IP address
 
 ---
-### Setup *On* Hassbian (same server as HA)
+### Setup on Hassbian (same server as HA)
 
 #### rc.local
 ```
