@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3 -u
 
 """
 Support for DSC alarm control panels using IT-100 integration module by emulating an EnvisaLink EVL-4
