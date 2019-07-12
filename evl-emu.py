@@ -1,4 +1,4 @@
-#!/usr/bin/env python3 -u
+#!/usr/bin/env python3
 
 """
 Support for DSC alarm control panels using IT-100 integration module by emulating an EnvisaLink EVL-4
@@ -16,26 +16,23 @@ import serial
 import inspect
 import random
 import socket
+import argparse
 
 REQUIREMENTS = ['pyserial']
-
-_LOGGER = logging.getLogger(__name__)
 
 DEFAULT_PARTITIONS = 1
 DEFAULT_ZONES = 64
 
 #SERIAL_PORT = '/dev/it100'
-SERIAL_PORT = '/dev/ttyUSB0'
+SERIAL_PORT = '/dev/serial/by-id/usb-FTDI_FT232R_USB_UART_A60093zl-if00-port0'
 SERIAL_BAUD = 9600
 NETWORK_HOST = '0.0.0.0'
 NETWORK_PORT = 4025
 
-HEX_MSG = True
-
-
 # Zone state definitions
 ZONE_OPEN = 0
 ZONE_CLOSED = 1
+
 
 
 # --------------------------------------------------------------------------------
@@ -124,6 +121,7 @@ NOTIFY_BEEP_STATUS = '904'
 NOTIFY_VERSION = '908'
 
 
+
 # --------------------------------------------------------------------------------
 #	Envisalink Protcol definitions
 # --------------------------------------------------------------------------------
@@ -160,6 +158,8 @@ Response codes not handled by DSC
 921
 922
 """
+
+
 
 # --------------------------------------------------------------------------------
 #	Classes
@@ -216,10 +216,6 @@ class dsc_zone():
 			timedeltastringLE = timedeltastring[2:4] + timedeltastring[0:2]
 			return timedeltastringLE
 
-		
-
-
-
 
 
 # --------------------------------------------------------------------------------
@@ -231,7 +227,7 @@ class dsc_zone():
 	- Only passes message content.  Checksum and CR/LF are removed.
 """
 def serialRead(readQueueSer, port):
-	print("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
+	logger.info("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
 
 	try:
 		lastdatatime = time.time()
@@ -242,8 +238,8 @@ def serialRead(readQueueSer, port):
 
 			# If there is a long delay between messages while data is in the buffer, assume something went wrong and throw out the old data
 			thisdatatime = time.time()
-			if ( ((thisdatatime - lastdatatime) > 0.5) and (msgbuf.__len__() > 0) ):
-				print ("ERROR: flushing stale data from receive buffer {}".format(msgbuf))
+			if ( ((thisdatatime - lastdatatime) > 1.0) and (msgbuf.__len__() > 0) ):
+				logger.info ("ERROR: flushing stale data from receive buffer {}".format(msgbuf))
 				msgbuf=''
 
 			# Add each byte of received data to message buffer			
@@ -254,24 +250,26 @@ def serialRead(readQueueSer, port):
 			if (msgbuf.__len__() >= 7):
 				if (ord(msgbuf[msgbuf.__len__()-2]) == 0x0D and ord(msgbuf[msgbuf.__len__()-1]) == 0x0A):
 					# Found terminator, message is complete.
-					if (HEX_MSG):
+					if (args.hex):
 						timestamp=time.strftime("[%H:%M:%S]", time.localtime())
-						print ("{} DSC In  > {}   {}".format(timestamp, ":".join("{:02X}".format(ord(c)) for c in msgbuf), msgbuf[0:msgbuf.__len__() - 2] ))
+						logger.debug ("{} DSC In  > {}   {}".format(timestamp, ":".join("{:02X}".format(ord(c)) for c in msgbuf), msgbuf[0:msgbuf.__len__() - 2] ))
+					else:
+						logger.debug("S>{}".format(msgbuf[0:3]))
 					# Queue message if checksum OK
 					msgdata = msgbuf[0:msgbuf.__len__() - 4]
 					msgchksum = msgbuf[msgbuf.__len__() - 4:msgbuf.__len__() - 2]
 					if (msgchksum == dsc_checksum(msgdata)):
 						readQueueSer.put(msgdata)
 					else:
-						print ("{} DSC In  > Checksum error".format(timestamp))
+						logger.debug ("{} DSC In  > Checksum error".format(timestamp))
 					msgbuf = ''
 
 	except KeyboardInterrupt:
 		pass
 	except:
-		print("Caught exception in {}: {}".format(inspect.stack()[0][3], sys.exc_info()[0]))
+		logger.info("Caught exception in {}: {}".format(inspect.stack()[0][3], sys.exc_info()[0]))
 		raise
-	print("Exiting {}".format(inspect.stack()[0][3]))
+	logger.info("Exiting {}".format(inspect.stack()[0][3]))
 	return None
 
 
@@ -281,7 +279,7 @@ def serialRead(readQueueSer, port):
 	- Does not add checksum or CR/LF
 """
 def serialWrite(writeQueueSer, port):
-	print("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
+	logger.info("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
 
 	try:
 		while True:
@@ -289,17 +287,19 @@ def serialWrite(writeQueueSer, port):
 			msg = writeQueueSer.get(True, None)
 
 			# Send message
-			if (HEX_MSG):
+			if (args.hex):
 				timestamp=time.strftime("[%H:%M:%S]", time.localtime())
-				print("{} DSC Out < {}   {}".format(timestamp, ":".join("{:02X}".format(ord(c)) for c in msg), msg[0:msg.__len__() - 2] ))
+				logger.debug("{} DSC Out < {}   {}".format(timestamp, ":".join("{:02X}".format(ord(c)) for c in msg), msg[0:msg.__len__() - 2] ))
+			else:
+				logger.debug("S<{}".format(msg[0:3]))
 			port.write(bytes(msg, 'UTF-8'))
 
 	except KeyboardInterrupt:
 		pass
 	except:
-		print("Caught exception in {}: {}".format(inspect.stack()[0][3], sys.exc_info()[0]))
+		logger.info("Caught exception in {}: {}".format(inspect.stack()[0][3], sys.exc_info()[0]))
 		raise
-	print("Exiting {}".format(inspect.stack()[0][3]))
+	logger.info("Exiting {}".format(inspect.stack()[0][3]))
 	return None
 
 
@@ -314,7 +314,7 @@ def serialWrite(writeQueueSer, port):
 	- Only passes message content.  Checksum and CR/LF are removed.
 """
 def networkRead(readQueueNet, conn):
-	print("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
+	logger.info("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
 	
 	try:
 		lastdatatime = time.time()
@@ -329,7 +329,7 @@ def networkRead(readQueueNet, conn):
 			# If there is a long delay between messages while data is in the buffer, assume something went wrong and throw out the old data
 			thisdatatime = time.time()
 			if ( ((thisdatatime - lastdatatime) > 0.5) and (msgbuf.__len__() > 0) ):
-				print ("ERROR: flushing stale data from receive buffer {}".format(msgbuf))
+				logger.info ("ERROR: flushing stale data from receive buffer {}".format(msgbuf))
 				msgbuf=''
 
 			# Add each byte of received data to message buffer			
@@ -340,32 +340,35 @@ def networkRead(readQueueNet, conn):
 			if (msgbuf.__len__() >= 7):
 				if (ord(msgbuf[msgbuf.__len__()-2]) == 0x0D and ord(msgbuf[msgbuf.__len__()-1]) == 0x0A):
 					# Found terminator, message is complete.
-					if (HEX_MSG):
+					if (args.hex):
 						timestamp=time.strftime("[%H:%M:%S]", time.localtime())
-						print ("{} EVL In  > {}   {}".format(timestamp, ":".join("{:02X}".format(ord(c)) for c in msgbuf), msgbuf[0:msgbuf.__len__() - 2] ))
+						logger.debug ("{} EVL In  > {}   {}".format(timestamp, ":".join("{:02X}".format(ord(c)) for c in msgbuf), msgbuf[0:msgbuf.__len__() - 2] ))
+					else:
+						logger.debug("N>{}".format(msgbuf[0:3]))
+						# logger.debug("N>{} ({})".format(msgbuf[0:3], os.getpid()))
 					# Queue message if checksum OK
 					msgdata = msgbuf[0:msgbuf.__len__() - 4]
 					msgchksum = msgbuf[msgbuf.__len__() - 4:msgbuf.__len__() - 2]
 					if (msgchksum == dsc_checksum(msgdata)):
 						readQueueNet.put(msgdata)
 					else:
-						print ("{} EVL In  > Checksum error".format(timestamp))
+						logger.debug ("{} EVL In  > Checksum error".format(timestamp))
 					msgbuf = ''
 
 	except NameError:
-		print ("Connection closed by client, terminating networkRead thread.")
+		logger.info ("Connection closed by client, terminating networkRead thread. ({})".format(os.getpid()))
 		conn.close()
 		return None
 	except OSError:
-		print ("OSError: {}".format(inspect.stack()[0][3]))
+		logger.info ("OSError: {}".format(inspect.stack()[0][3]))
 		conn.close()
 		return None
 	except KeyboardInterrupt:
 		pass
 	except:
-		print("Caught exception in {}: {}".format(inspect.stack()[0][3], sys.exc_info()[0]))
+		logger.info("Caught exception in {}: {} ({})".format(inspect.stack()[0][3], sys.exc_info()[0], os.getpid()))
 		raise
-	print("Exiting {}".format(inspect.stack()[0][3]))
+	logger.info("Exiting {} ({})".format(inspect.stack()[0][3], os.getpid()))
 	return None
 
 
@@ -374,7 +377,7 @@ def networkRead(readQueueNet, conn):
 	- Does not add checksum or CR/LF
 """
 def networkWrite(writeQueueNet, conn):
-	print("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
+	logger.info("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
 
 	try:
 		while True:
@@ -382,21 +385,24 @@ def networkWrite(writeQueueNet, conn):
 			msg = writeQueueNet.get(True, None)
 
 			# Print message and send it out the socket connection
-			if (HEX_MSG):
+			if (args.hex):
 				timestamp=time.strftime("[%H:%M:%S]", time.localtime())
-				print("{} EVL Out < {}   {}".format(timestamp, ":".join("{:02X}".format(ord(c)) for c in msg), msg[0:msg.__len__() - 2] ))
+				logger.debug("{} EVL Out < {}   {}".format(timestamp, ":".join("{:02X}".format(ord(c)) for c in msg), msg[0:msg.__len__() - 2] ))
+			else:
+				logger.debug("N<{}".format(msg[0:3]))
+				# logger.debug("N<{} ({})".format(msg[0:3], os.getpid()))
 			conn.send(bytes(msg, 'UTF-8'))
 
 	except OSError:
-		print ("OSError: {}".format(inspect.stack()[0][3]))
+		logger.info ("OSError: {} ({})".format(inspect.stack()[0][3], os.getpid()))
 		conn.close()
 		return None
 	except KeyboardInterrupt:
 		pass
 	except:
-		print("Caught exception in {}: {}".format(inspect.stack()[0][3], sys.exc_info()[0]))
+		logger.info("Caught exception in {}: {} ({})".format(inspect.stack()[0][3], sys.exc_info()[0], os.getpid()))
 		raise
-	print("Exiting {}".format(inspect.stack()[0][3]))
+	logger.info("Exiting {} ({})".format(inspect.stack()[0][3], os.getpid()))
 	return None
 
 
@@ -406,7 +412,7 @@ def networkWrite(writeQueueNet, conn):
 	Note: Don't send checksum or CR/LF, they're not needed.
 """
 def networkReadTest(readQueueSer):
-	print("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
+	logger.info("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
 
 	try:
 		sock = socket.socket()
@@ -414,30 +420,28 @@ def networkReadTest(readQueueSer):
 		sock.setblocking(1)
 		sock.listen(5)
 	
-		print ("Test listening on {}:{}".format(NETWORK_HOST, str(1 + NETWORK_PORT)))
+		logger.info ("Test listening on {}:{}".format(NETWORK_HOST, str(1 + NETWORK_PORT)))
 		while True:
 			conn, addr = sock.accept()
 			msg = conn.recv(128).decode("UTF-8")
-			if (HEX_MSG):
+			if (args.hex):
 				timestamp=time.strftime("[%H:%M:%S]", time.localtime())
-				#print ("{} Test In > {}   {}".format(timestamp, ":".join("{:02X}".format(ord(c)) for c in msg), msg ))
-				print ("{} Test In > {}".format(timestamp, msg))
+				#logger.info ("{} Test In > {}   {}".format(timestamp, ":".join("{:02X}".format(ord(c)) for c in msg), msg ))
+				logger.debug ("{} Test In > {}".format(timestamp, msg))
 			readQueueSer.put(msg)
 			conn.close()
 
 	except OSError:
-		print ("OSError: {}".format(inspect.stack()[0][3]))
+		logger.info ("OSError: {}".format(inspect.stack()[0][3]))
 		conn.close()
 		return None
 	except KeyboardInterrupt:
 		pass
 	except:
-		print("Caught exception in {}: {}".format(inspect.stack()[0][3], sys.exc_info()[0]))
+		logger.info("Caught exception in {}: {}".format(inspect.stack()[0][3], sys.exc_info()[0]))
 		raise
-	print("Exiting {}".format(inspect.stack()[0][3]))
+	logger.info("Exiting {}".format(inspect.stack()[0][3]))
 	return None
-
-
 
 
 
@@ -449,7 +453,7 @@ def networkReadTest(readQueueSer):
 Process messages that arrive from DSC via the serial queue.
 """
 def msghandler_dsc(readQueueSer, writeQueueSer, writeQueueNet, zones):
-	print("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
+	logger.info("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
 
 	try:
 		while True:
@@ -477,9 +481,9 @@ def msghandler_dsc(readQueueSer, writeQueueSer, writeQueueNet, zones):
 	except KeyboardInterrupt:
 		pass
 	except:
-		print("Caught exception in {}: {}".format(inspect.stack()[0][3], sys.exc_info()[0]))
+		logger.info("Caught exception in {}: {} ({})".format(inspect.stack()[0][3], sys.exc_info()[0], os.getpid()))
 		raise
-	print("Exiting {}".format(inspect.stack()[0][3]))
+	logger.info("Exiting {} ({})".format(inspect.stack()[0][3], os.getpid()))
 	return None
 
 
@@ -487,7 +491,7 @@ def msghandler_dsc(readQueueSer, writeQueueSer, writeQueueNet, zones):
 Process messages that arrive from the EVL client via the network queue
 """
 def msghandler_evl(readQueueNet, writeQueueNet, writeQueueSer, zones):
-	print("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
+	logger.info("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
 
 	try:
 		while True:
@@ -508,8 +512,10 @@ def msghandler_evl(readQueueNet, writeQueueNet, writeQueueSer, zones):
 
 				timestamp=time.strftime("[%H:%M:%S]", time.localtime())
 				# Login
+				# - This shouldn't generally happen since login is handled before this starts up.
 				if (command == EVL_LOGIN_REQUEST):
 					writeQueueNet.put(dsc_send(EVL_LOGIN_INTERACTION + "1"))
+					logger.debug("Client sent login request, replying with login success message")
 				# Dump timers
 				elif (command == EVL_DUMP_TIMERS):
 					timermsg = ""
@@ -556,9 +562,9 @@ def msghandler_evl(readQueueNet, writeQueueNet, writeQueueSer, zones):
 	except KeyboardInterrupt:
 		pass
 	except:
-		print("Caught exception in {}: {}".format(inspect.stack()[0][3], sys.exc_info()[0]))
+		logger.info("Caught exception in {}: {} ({})".format(inspect.stack()[0][3], sys.exc_info()[0], os.getpid()))
 		raise
-	print("Exiting {}".format(inspect.stack()[0][3]))
+	logger.info("Exiting {} ({})".format(inspect.stack()[0][3], os.getpid()))
 	return None
 
 
@@ -586,7 +592,7 @@ def dsc_send(msg):
 
 # Signal handler
 def signal_handler(signal, frame):
-	print("Signal handler called with signal {}".format(signal))
+	logger.info("Signal handler called with signal {}".format(signal))
 	sys.exit(0)
 
 
@@ -595,9 +601,45 @@ def signal_handler(signal, frame):
 #	MAIN
 # --------------------------------------------------------------------------------
 
+"""
+	Startup serial I/O routines
+	Wait for a network connection
+	On connection:
+		Handle client login
+		Create network handler processes to read/write data from network queues
+		Create event handler processes to do interactions
+"""
+
 if __name__ == "__main__":
+
+	parser = argparse.ArgumentParser(description='Envisalink emulator for DSC-IT100')
+	parser.add_argument('--debug', action='store_true', help="Enable debug messages")
+	parser.add_argument('--hex', action='store_true', help="Show messages in hex")
+	args = parser.parse_args()
+
+	# Setup logging
+	logger = logging.getLogger(__name__)
+	fileformatter = logging.Formatter(fmt='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+	consoleformatter = logging.Formatter(fmt='%(asctime)s - %(message)s', datefmt='%H:%M:%S')
+
+	# File log options	
+	fh = logging.FileHandler('/home/pi/evl-emu/evl.log')
+	fh.setFormatter(fileformatter)
+	logger.addHandler(fh)
+
+	# Console log options
+	ch = logging.StreamHandler()
+	ch.setFormatter(consoleformatter)
+
+	logger.setLevel(logging.INFO)
+
+	if (args.debug):
+		logger.setLevel(logging.DEBUG)
+		# Do debug logging to console as well as file
+		logger.addHandler(ch)
+
 	try:
-		print("Process: {}".format(os.getpid()))
+		logger.info("Process: {}".format(os.getpid()))
 
 		# Open serial port
 		ser = None
@@ -620,42 +662,24 @@ if __name__ == "__main__":
 		for z in range(64):
 			zones.append(dsc_zone(zone=z))
 
-
-		# Start worker threads
+		# Create and start serial I/O handlers
 		p_serialread = multiprocessing.Process(target=serialRead, args=(readQueueSer, ser))
 		p_serialwrite = multiprocessing.Process(target=serialWrite, args=(writeQueueSer, ser))
-		p_msghandler_dsc = multiprocessing.Process(target=msghandler_dsc, args=(readQueueSer, writeQueueSer, writeQueueNet, zones))
-		p_msghandler_evl = multiprocessing.Process(target=msghandler_evl, args=(readQueueNet, writeQueueNet, writeQueueSer, zones))
-
-		# Startup threads
 		p_serialread.start()
 		p_serialwrite.start()
-		p_msghandler_dsc.start()
-		p_msghandler_evl.start()
 
-		# Stop execution here until a SIGINT or SIGTERM is received.  At this point all the work is being done by subprocesses and this function is just waiting to exit
+		# Create a signal object that will stop execution until a SIGINT or SIGTERM is received.  Don't start it yet.
 		signal.signal(signal.SIGINT, signal_handler)
 		signal.signal(signal.SIGTERM, signal_handler)
 
-		time.sleep(3)
-
-		print("---------- Panel Initialization Start ----------")
-		writeQueueSer.put(dsc_send(COMMAND_POLL))
-#		time.sleep(1)
-#		writeQueueSer.put(dsc_send(COMMAND_VIRTUAL_KEYBOARD_CONTROL + '1'))
-		time.sleep(2)
-#		writeQueueSer.put(dsc_send(COMMAND_STATUS_REQUEST))
-		print("---------- Panel Initialization End ----------")
-
 		# Startup test network connection
-		p_networkreadtest = multiprocessing.Process(target=networkReadTest, args=(readQueueSer, ))
-		p_networkreadtest.start()
+		#p_networkreadtest = multiprocessing.Process(target=networkReadTest, args=(readQueueSer, ))
+		#p_networkreadtest.start()
 
-		# Handle network connections
+		# Setup a network socket and listen for connections
 		sock.bind((NETWORK_HOST, NETWORK_PORT))
 		sock.setblocking(1)
 		sock.listen(5)
-		print ("EVL listening on {}:{}".format(NETWORK_HOST, str(NETWORK_PORT)))
 		while(1):
 			"""
 				This should only attempt to handle one client at a time.
@@ -663,50 +687,81 @@ if __name__ == "__main__":
 				The client should immediately be sent the login interaction message to request authentication.
 			"""
 			# Wait for client connection.
+			logger.info ("EVL waiting for connection on {}:{}".format(NETWORK_HOST, str(NETWORK_PORT)))
 			conn, addr = sock.accept()
-			print ("Client connected: {}".format(addr))
+			logger.info ("Client connected: {}".format(addr))
 
 			# Flush queues
+			logger.debug ("Flushing queues")
 			while ( readQueueSer.empty() == False ): readQueueSer.get()
 			while ( readQueueNet.empty() == False ): readQueueNet.get()
 			while ( writeQueueSer.empty() == False ): writeQueueSer.get()
 			while ( writeQueueNet.empty() == False ): writeQueueNet.get()
 
-			# Terminate old network I/O threads if they exist
-			if 'p_networkread' in locals(): p_networkread.terminate()
-			if 'p_networkwrite' in locals(): p_networkwrite.terminate()
+			# Terminate any running network or msghandler threads
+			logger.debug ("Terminating old processes")
+			if 'p_networkread' in locals() and p_networkread.is_alive(): p_networkread.terminate()
+			if 'p_networkwrite' in locals() and p_networkwrite.is_alive(): p_networkwrite.terminate()
+			if 'p_msghandler_dsc' in locals() and p_msghandler_dsc.is_alive(): p_msghandler_dsc.terminate()
+			if 'p_msghandler_evl' in locals() and p_msghandler_evl.is_alive(): p_msghandler_evl.terminate()
+			
+			# This should actually wait and confirm the threads are shutdown before continuing.
+			while(1):
+				if ('p_networkread' not in locals() or not p_networkread.is_alive()): break
+			while(1):
+				if ('p_networkwrite' not in locals() or not p_networkwrite.is_alive()): break
+			while(1):
+				if ('p_msghandler_dsc' not in locals() or not p_msghandler_dsc.is_alive()): break
+			while(1):
+				if ('p_msghandler_evl' not in locals() or not p_msghandler_evl.is_alive()): break
+			logger.debug ("All processes are stopped, continuing.")
 
-			# Create new network I/O threads for this connection
+			# Create and start network I/O handlers
+			logger.debug ("Creating new p_networkread and p_networkwrite")
 			p_networkread = multiprocessing.Process(target=networkRead, args=(readQueueNet, conn))
 			p_networkwrite = multiprocessing.Process(target=networkWrite, args=(writeQueueNet, conn))
 			p_networkread.start()
 			p_networkwrite.start()
 
-			# Ask client to log in.  After this happens, the message handler thread will do the remainder of the interaction with the client
+			# Do client login process.  Send password request (3), get any response, then send success message (1)
+			logger.info ("Doing client login")
 			writeQueueNet.put(dsc_send(EVL_LOGIN_INTERACTION + '3'))
+			login = readQueueNet.get(True, 10)
+			writeQueueNet.put(dsc_send(EVL_LOGIN_INTERACTION + "1"))
 
+			# Create and start message handlers
+			logger.debug ("Creating new p_msghandler_dsc and p_msghandler_evl")
+			p_msghandler_dsc = multiprocessing.Process(target=msghandler_dsc, args=(readQueueSer, writeQueueSer, writeQueueNet, zones))
+			p_msghandler_evl = multiprocessing.Process(target=msghandler_evl, args=(readQueueNet, writeQueueNet, writeQueueSer, zones))
+			p_msghandler_dsc.start()
+			p_msghandler_evl.start()
+
+			logger.info("Client ready.")
+			
+			
+		# Now stop execution until a signal is received.  At this point, all of the work is being done by the subprocesses.
 		signal.pause()
 
 	except (serial.serialutil.SerialException):
-		print("Can't open port")
+		logger.info("Can't open port")
 		
 	except (KeyboardInterrupt, SystemExit):
 		raise
 	except:
-		print("Caught exception in main: {}".format(sys.exc_info()[0]))
+		logger.info("Caught exception in main: {}".format(sys.exc_info()[0]))
 		raise
 	finally:
-		print("Terminating threads")
-		if 'p_serialread' in locals(): p_serialread.terminate()
-		if 'p_serialwrite' in locals(): p_serialwrite.terminate()
-		if 'p_networkread' in locals(): p_networkread.terminate()
-		if 'p_networkwrite' in locals(): p_networkwrite.terminate()
-		if 'p_msghandler_dsc' in locals(): p_msghandler_dsc.terminate()
-		if 'p_msghandler_evl' in locals(): p_msghandler_evl.terminate()
-		if 'p_networkreadtest' in locals(): p_networkreadtest.terminate()
+		logger.info("Terminating threads")
+		if 'p_serialread' in locals() and p_serialread.is_alive(): p_serialread.terminate()
+		if 'p_serialwrite' in locals() and p_serialwrite.is_alive(): p_serialwrite.terminate()
+		if 'p_networkread' in locals() and p_networkread.is_alive(): p_networkread.terminate()
+		if 'p_networkwrite' in locals() and p_networkwrite.is_alive(): p_networkwrite.terminate()
+		if 'p_msghandler_dsc' in locals() and p_msghandler_dsc.is_alive(): p_msghandler_dsc.terminate()
+		if 'p_msghandler_evl' in locals() and p_msghandler_evl.is_alive(): p_msghandler_evl.terminate()
+		if 'p_networkreadtest' in locals() and p_networkreadtest.is_alive(): p_networkreadtest.terminate()
 
 		ser.close()
 		sock.shutdown(socket.SHUT_RDWR)
 		sock.close()
 
-		print("Done.")
+		logger.info("Done.")
