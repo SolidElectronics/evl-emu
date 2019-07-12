@@ -38,7 +38,7 @@ Change 'host' in envisalink.yaml to this system's IP address
 Leave 'host' in envisalink.yaml as 127.0.0.1
 
 ---
-### Home Assistand Setup
+### Home Assistant Setup
 #### configuration.yaml
 ```
 envisalink: !include envisalink.yaml
