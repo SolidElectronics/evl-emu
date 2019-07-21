@@ -251,10 +251,10 @@ def serialRead(readQueueSer, port):
 				if (ord(msgbuf[msgbuf.__len__()-2]) == 0x0D and ord(msgbuf[msgbuf.__len__()-1]) == 0x0A):
 					# Found terminator, message is complete.
 					if (args.hex):
-						timestamp=time.strftime("[%H:%M:%S]", time.localtime())
-						logger.debug ("{} DSC In  > {}   {}".format(timestamp, ":".join("{:02X}".format(ord(c)) for c in msgbuf), msgbuf[0:msgbuf.__len__() - 2] ))
+						logger.debug ("DSC In  > {}   {}".format(":".join("{:02X}".format(ord(c)) for c in msgbuf), msgbuf[0:msgbuf.__len__() - 2] ))
 					else:
-						logger.debug("S>{}".format(msgbuf[0:3]))
+						logger.debug ("DSC In  > {}".format(msgbuf[0:msgbuf.__len__() - 4] ))
+
 					# Queue message if checksum OK
 					msgdata = msgbuf[0:msgbuf.__len__() - 4]
 					msgchksum = msgbuf[msgbuf.__len__() - 4:msgbuf.__len__() - 2]
@@ -288,10 +288,10 @@ def serialWrite(writeQueueSer, port):
 
 			# Send message
 			if (args.hex):
-				timestamp=time.strftime("[%H:%M:%S]", time.localtime())
-				logger.debug("{} DSC Out < {}   {}".format(timestamp, ":".join("{:02X}".format(ord(c)) for c in msg), msg[0:msg.__len__() - 2] ))
+				logger.debug ("DSC Out < {}   {}".format(":".join("{:02X}".format(ord(c)) for c in msg), msg[0:msg.__len__() - 2] ))
 			else:
-				logger.debug("S<{}".format(msg[0:3]))
+				logger.debug ("DSC Out < {}".format(msg[0:msg.__len__() - 4] ))
+
 			port.write(bytes(msg, 'UTF-8'))
 
 	except KeyboardInterrupt:
@@ -341,11 +341,9 @@ def networkRead(readQueueNet, conn):
 				if (ord(msgbuf[msgbuf.__len__()-2]) == 0x0D and ord(msgbuf[msgbuf.__len__()-1]) == 0x0A):
 					# Found terminator, message is complete.
 					if (args.hex):
-						timestamp=time.strftime("[%H:%M:%S]", time.localtime())
-						logger.debug ("{} EVL In  > {}   {}".format(timestamp, ":".join("{:02X}".format(ord(c)) for c in msgbuf), msgbuf[0:msgbuf.__len__() - 2] ))
+						logger.debug ("EVL In  > {}   {}".format(":".join("{:02X}".format(ord(c)) for c in msgbuf), msgbuf[0:msgbuf.__len__() - 2] ))
 					else:
-						logger.debug("N>{}".format(msgbuf[0:3]))
-						# logger.debug("N>{} ({})".format(msgbuf[0:3], os.getpid()))
+						logger.debug("EVL In  > {}".format(msgbuf[0:msgbuf.__len__() - 4] ))
 					# Queue message if checksum OK
 					msgdata = msgbuf[0:msgbuf.__len__() - 4]
 					msgchksum = msgbuf[msgbuf.__len__() - 4:msgbuf.__len__() - 2]
@@ -356,11 +354,11 @@ def networkRead(readQueueNet, conn):
 					msgbuf = ''
 
 	except NameError:
-		logger.info ("Connection closed by client, terminating networkRead thread. ({})".format(os.getpid()))
+		logger.error ("Connection closed by client, terminating networkRead thread. ({})".format(os.getpid()))
 		conn.close()
 		return None
 	except OSError:
-		logger.info ("OSError: {}".format(inspect.stack()[0][3]))
+		logger.error ("OSError: {}".format(inspect.stack()[0][3]))
 		conn.close()
 		return None
 	except KeyboardInterrupt:
@@ -386,15 +384,13 @@ def networkWrite(writeQueueNet, conn):
 
 			# Print message and send it out the socket connection
 			if (args.hex):
-				timestamp=time.strftime("[%H:%M:%S]", time.localtime())
-				logger.debug("{} EVL Out < {}   {}".format(timestamp, ":".join("{:02X}".format(ord(c)) for c in msg), msg[0:msg.__len__() - 2] ))
+				logger.debug("EVL Out < {}   {}".format(":".join("{:02X}".format(ord(c)) for c in msg), msg[0:msg.__len__() - 2] ))
 			else:
-				logger.debug("N<{}".format(msg[0:3]))
-				# logger.debug("N<{} ({})".format(msg[0:3], os.getpid()))
+				logger.debug("EVL Out < {}".format(msg[0:msg.__len__() - 4] ))
 			conn.send(bytes(msg, 'UTF-8'))
 
 	except OSError:
-		logger.info ("OSError: {} ({})".format(inspect.stack()[0][3], os.getpid()))
+		logger.error ("OSError: {} ({})".format(inspect.stack()[0][3], os.getpid()))
 		conn.close()
 		return None
 	except KeyboardInterrupt:
@@ -432,7 +428,7 @@ def networkReadTest(readQueueSer):
 			conn.close()
 
 	except OSError:
-		logger.info ("OSError: {}".format(inspect.stack()[0][3]))
+		logger.error ("OSError: {}".format(inspect.stack()[0][3]))
 		conn.close()
 		return None
 	except KeyboardInterrupt:
@@ -451,6 +447,7 @@ def networkReadTest(readQueueSer):
 
 """
 Process messages that arrive from DSC via the serial queue.
+Only runs while client is connected.
 """
 def msghandler_dsc(readQueueSer, writeQueueSer, writeQueueNet, zones):
 	logger.info("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
@@ -478,6 +475,18 @@ def msghandler_dsc(readQueueSer, writeQueueSer, writeQueueNet, zones):
 				# All other messages relay to EVL
 				writeQueueNet.put(dsc_send(msg))
 
+				# Nice logging
+				if (command == NOTIFY_ZONE_OPEN):
+					logger.info("Panel: zone {} open".format(int(data)))
+				elif (command == NOTIFY_ZONE_RESTORED):
+					logger.info("Panel: zone {} restored".format(int(data)))
+				elif (command == NOTIFY_PARTITION_READY):
+					logger.info("Panel: partition {} ready".format(int(data)))
+				elif (command == NOTIFY_PARTITION_NOT_READY):
+					logger.info("Panel: partition {} not ready".format(int(data)))
+				else:
+					logger.info("Panel: {}".format(data))
+
 	except KeyboardInterrupt:
 		pass
 	except:
@@ -489,6 +498,7 @@ def msghandler_dsc(readQueueSer, writeQueueSer, writeQueueNet, zones):
 
 """
 Process messages that arrive from the EVL client via the network queue
+Only runs while client is connected.
 """
 def msghandler_evl(readQueueNet, writeQueueNet, writeQueueSer, zones):
 	logger.info("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
@@ -514,10 +524,11 @@ def msghandler_evl(readQueueNet, writeQueueNet, writeQueueSer, zones):
 				# Login
 				# - This shouldn't generally happen since login is handled before this starts up.
 				if (command == EVL_LOGIN_REQUEST):
+					logger.info("Client: login request, replying with login success message")
 					writeQueueNet.put(dsc_send(EVL_LOGIN_INTERACTION + "1"))
-					logger.debug("Client sent login request, replying with login success message")
 				# Dump timers
 				elif (command == EVL_DUMP_TIMERS):
+					logger.info("Client: dump timers")
 					timermsg = ""
 					for z in zones:
 						timermsg += z.getTimer()
@@ -525,6 +536,7 @@ def msghandler_evl(readQueueNet, writeQueueNet, writeQueueSer, zones):
 				# Key sequence
 				# - Enables virtual keypad only while code is being sent
 				elif (command == EVL_KEY_STRING):
+					logger.info("Client: virtual keypress {}".format(data[1:]))
 					writeQueueSer.put(dsc_send(COMMAND_VIRTUAL_KEYBOARD_CONTROL + '1'))
 					time.sleep(0.5)
 					for c in data[1:]:
@@ -538,6 +550,7 @@ def msghandler_evl(readQueueNet, writeQueueNet, writeQueueSer, zones):
 				# Code padding (most commands require 6 digits, 4-digit codes need two zeros appended.
 				# -- Partition disarm
 				elif (command == COMMAND_PARTITION_DISARM_CONTROL):
+					logger.info("Client: disarm partition {} with code {}".format(data[0], data[1:]))
 					disarm_zone = data[0]
 					disarm_code = data[1:]
 					if (len(disarm_code)  == 4):
@@ -545,6 +558,7 @@ def msghandler_evl(readQueueNet, writeQueueNet, writeQueueSer, zones):
 					writeQueueSer.put(dsc_send(command + disarm_zone + disarm_code))
 				# -- Code request
 				elif (command == COMMAND_CODE_SEND):
+					logger.info("Client: sending code {}".format(data))
 					if (len(data)  == 4):
 						data += '00'
 					# DSC documentation is incorrect here.  Need to send partition number ahead of code.
@@ -553,10 +567,12 @@ def msghandler_evl(readQueueNet, writeQueueNet, writeQueueSer, zones):
 				# Customizations
 				# - Change "arm stay" to "arm zero entry delay"
 				elif (command == COMMAND_PARTITION_ARM_CONTROL_STAY):
+					logger.info("Client: arm partition zero entry")
 					writeQueueSer.put(dsc_send(COMMAND_PARTITION_ARM_CONTROL_ZERO_ENTRY + data))
 
 				# All other messages just relay to DSC as-is
 				else:
+					logger.info("Client: {}".format(msg))
 					writeQueueSer.put(dsc_send(msg))
 
 	except KeyboardInterrupt:
@@ -614,13 +630,18 @@ if __name__ == "__main__":
 
 	parser = argparse.ArgumentParser(description='Envisalink emulator for DSC-IT100')
 	parser.add_argument('--debug', action='store_true', help="Enable debug messages")
-	parser.add_argument('--hex', action='store_true', help="Show messages in hex")
+	parser.add_argument('--info', action='store_true', help="Enable info messages")
+	parser.add_argument('--hex', action='store_true', help="Add hex codes to debug messages")
+	parser.add_argument('--console', action='store_true', help="enable logging to console")
+	
 	args = parser.parse_args()
 
 	# Setup logging
 	logger = logging.getLogger(__name__)
-	fileformatter = logging.Formatter(fmt='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+	#fileformatter = logging.Formatter(fmt='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+	fileformatter = logging.Formatter(fmt='%(asctime)s - %(message)s', datefmt='%m/%d %H:%M:%S')
 	consoleformatter = logging.Formatter(fmt='%(asctime)s - %(message)s', datefmt='%H:%M:%S')
+	logger.setLevel(logging.WARNING)
 
 	# File log options	
 	fh = logging.FileHandler('/home/pi/evl-emu/evl.log')
@@ -631,15 +652,16 @@ if __name__ == "__main__":
 	ch = logging.StreamHandler()
 	ch.setFormatter(consoleformatter)
 
-	logger.setLevel(logging.INFO)
-
+	if (args.info):
+		logger.setLevel(logging.INFO)
 	if (args.debug):
 		logger.setLevel(logging.DEBUG)
-		# Do debug logging to console as well as file
+
+	if (args.console):
 		logger.addHandler(ch)
 
 	try:
-		logger.info("Process: {}".format(os.getpid()))
+		logger.warning("Startup Process: {}".format(os.getpid()))
 
 		# Open serial port
 		ser = None
@@ -680,6 +702,7 @@ if __name__ == "__main__":
 		sock.bind((NETWORK_HOST, NETWORK_PORT))
 		sock.setblocking(1)
 		sock.listen(5)
+		logger.info ("EVL waiting for connection on {}:{}".format(NETWORK_HOST, str(NETWORK_PORT)))
 		while(1):
 			"""
 				This should only attempt to handle one client at a time.
@@ -687,9 +710,8 @@ if __name__ == "__main__":
 				The client should immediately be sent the login interaction message to request authentication.
 			"""
 			# Wait for client connection.
-			logger.info ("EVL waiting for connection on {}:{}".format(NETWORK_HOST, str(NETWORK_PORT)))
 			conn, addr = sock.accept()
-			logger.info ("Client connected: {}".format(addr))
+			logger.warning ("Client connected: {}".format(addr))
 
 			# Flush queues
 			logger.debug ("Flushing queues")
@@ -743,7 +765,7 @@ if __name__ == "__main__":
 		signal.pause()
 
 	except (serial.serialutil.SerialException):
-		logger.info("Can't open port")
+		logger.error("Can't open port")
 		
 	except (KeyboardInterrupt, SystemExit):
 		raise
@@ -764,4 +786,4 @@ if __name__ == "__main__":
 		sock.shutdown(socket.SHUT_RDWR)
 		sock.close()
 
-		logger.info("Done.")
+		logger.error("Exited.")
