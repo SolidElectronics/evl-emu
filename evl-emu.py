@@ -475,17 +475,43 @@ def msghandler_dsc(readQueueSer, writeQueueSer, writeQueueNet, zones):
 				# All other messages relay to EVL
 				writeQueueNet.put(dsc_send(msg))
 
-				# Nice logging
-				if (command == NOTIFY_ZONE_OPEN):
+				# Readable logging for panel-originated notifications
+				# -- Panel
+				if (command == NOTIFY_ACK):
+					pass
+				elif (command == NOTIFY_VERSION):
+					logger.info("Panel: version {}".format(data))
+				elif (command == NOTIFY_CODE_REQUIRED):
+					logger.info("Panel: code required.  Partition {}, {} digits".format(int(data[0]), int(data[1])))
+				# -- Zones
+				elif (command == NOTIFY_ZONE_OPEN):
 					logger.info("Panel: zone {} open".format(int(data)))
 				elif (command == NOTIFY_ZONE_RESTORED):
 					logger.info("Panel: zone {} restored".format(int(data)))
+				# -- Partitions
 				elif (command == NOTIFY_PARTITION_READY):
 					logger.info("Panel: partition {} ready".format(int(data)))
 				elif (command == NOTIFY_PARTITION_NOT_READY):
 					logger.info("Panel: partition {} not ready".format(int(data)))
+				elif (command == NOTIFY_PARTITION_BUSY):
+					logger.info("Panel: partition {} busy".format(int(data)))
+				elif (command == NOTIFY_PARTITION_TROUBLE):
+					logger.info("Panel: partition {} trouble".format(int(data)))
+				elif (command == NOTIFY_PARTITION_TROUBLE_RESTORED):
+					logger.info("Panel: partition {} trouble restored".format(int(data)))
+				elif (command == NOTIFY_PARTITION_ARMED):
+					logger.info("Panel: partition {} armed".format(int(data)))
+				elif (command == NOTIFY_PARTITION_IN_ALARM):
+					logger.info("Panel: partition {} in alarm".format(int(data)))
+				elif (command == NOTIFY_PARTITION_DISARMED):
+					logger.info("Panel: partition {} disarmed".format(int(data)))
+				elif (command == NOTIFY_PARTITION_EXIT_DELAY:
+					logger.info("Panel: partition {} doing exit delay".format(int(data)))
+				elif (command == NOTIFY_PARTITION_ENTRY_DELAY:
+					logger.info("Panel: partition {} doing entry delay".format(int(data)))
+				# -- Everything else
 				else:
-					logger.info("Panel: {}".format(data))
+					logger.info("Panel: {}:{}".format(command, data))
 
 	except KeyboardInterrupt:
 		pass
@@ -524,11 +550,11 @@ def msghandler_evl(readQueueNet, writeQueueNet, writeQueueSer, zones):
 				# Login
 				# - This shouldn't generally happen since login is handled before this starts up.
 				if (command == EVL_LOGIN_REQUEST):
-					logger.info("Client: login request, replying with login success message")
+					logger.info("Client: EVL login request, replying with login success message")
 					writeQueueNet.put(dsc_send(EVL_LOGIN_INTERACTION + "1"))
 				# Dump timers
 				elif (command == EVL_DUMP_TIMERS):
-					logger.info("Client: dump timers")
+					logger.info("Client: EVL dump timers")
 					timermsg = ""
 					for z in zones:
 						timermsg += z.getTimer()
@@ -536,7 +562,7 @@ def msghandler_evl(readQueueNet, writeQueueNet, writeQueueSer, zones):
 				# Key sequence
 				# - Enables virtual keypad only while code is being sent
 				elif (command == EVL_KEY_STRING):
-					logger.info("Client: virtual keypress {}".format(data[1:]))
+					logger.info("Client: EVL virtual keypress {}".format(data[1:]))
 					writeQueueSer.put(dsc_send(COMMAND_VIRTUAL_KEYBOARD_CONTROL + '1'))
 					time.sleep(0.5)
 					for c in data[1:]:
@@ -572,8 +598,15 @@ def msghandler_evl(readQueueNet, writeQueueNet, writeQueueSer, zones):
 
 				# All other messages just relay to DSC as-is
 				else:
-					logger.info("Client: {}".format(msg))
 					writeQueueSer.put(dsc_send(msg))
+
+					# Nice logging for client-originated commands
+					if (command == COMMAND_POLL):
+						logger.info ("Client: Poll")
+					elif (command == COMMAND_STATUS_REQUEST):
+						logger.info ("Client: Status request")
+					else:
+						logger.info("Client: {}:{}".format(command, data))
 
 	except KeyboardInterrupt:
 		pass
