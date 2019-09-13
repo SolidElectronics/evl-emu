@@ -17,14 +17,14 @@ import inspect
 import random
 import socket
 import argparse
+from pathlib import Path
 
 REQUIREMENTS = ['pyserial']
 
 DEFAULT_PARTITIONS = 1
 DEFAULT_ZONES = 64
 
-#SERIAL_PORT = '/dev/it100'
-SERIAL_PORT = '/dev/serial/by-id/usb-FTDI_FT232R_USB_UART_A60093zl-if00-port0'
+SERIAL_PORT = '/dev/it100'
 SERIAL_BAUD = 9600
 NETWORK_HOST = '0.0.0.0'
 NETWORK_PORT = 4025
@@ -505,9 +505,9 @@ def msghandler_dsc(readQueueSer, writeQueueSer, writeQueueNet, zones):
 					logger.info("Panel: partition {} in alarm".format(int(data)))
 				elif (command == NOTIFY_PARTITION_DISARMED):
 					logger.info("Panel: partition {} disarmed".format(int(data)))
-				elif (command == NOTIFY_PARTITION_EXIT_DELAY:
+				elif (command == NOTIFY_PARTITION_EXIT_DELAY):
 					logger.info("Panel: partition {} doing exit delay".format(int(data)))
-				elif (command == NOTIFY_PARTITION_ENTRY_DELAY:
+				elif (command == NOTIFY_PARTITION_ENTRY_DELAY):
 					logger.info("Panel: partition {} doing entry delay".format(int(data)))
 				# -- Everything else
 				else:
@@ -676,8 +676,9 @@ if __name__ == "__main__":
 	consoleformatter = logging.Formatter(fmt='%(asctime)s - %(message)s', datefmt='%H:%M:%S')
 	logger.setLevel(logging.WARNING)
 
-	# File log options	
-	fh = logging.FileHandler('/home/pi/evl-emu/evl.log')
+	# File log options (Just put in home directory for now)
+	logpath = str(Path.home()) + '/evl-emu.log'
+	fh = logging.FileHandler(logpath)
 	fh.setFormatter(fileformatter)
 	logger.addHandler(fh)
 
