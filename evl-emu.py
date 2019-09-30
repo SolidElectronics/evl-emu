@@ -267,9 +267,9 @@ def serialRead(readQueueSer, port):
 	except KeyboardInterrupt:
 		pass
 	except:
-		logger.info("Caught exception in {}: {}".format(inspect.stack()[0][3], sys.exc_info()[0]))
+		logger.debug("Caught exception in {}: {}".format(inspect.stack()[0][3], sys.exc_info()[0]))
 		raise
-	logger.info("Exiting {}".format(inspect.stack()[0][3]))
+	logger.debug("Exiting {}".format(inspect.stack()[0][3]))
 	return None
 
 
@@ -279,7 +279,7 @@ def serialRead(readQueueSer, port):
 	- Does not add checksum or CR/LF
 """
 def serialWrite(writeQueueSer, port):
-	logger.info("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
+	logger.debug("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
 
 	try:
 		while True:
@@ -297,9 +297,9 @@ def serialWrite(writeQueueSer, port):
 	except KeyboardInterrupt:
 		pass
 	except:
-		logger.info("Caught exception in {}: {}".format(inspect.stack()[0][3], sys.exc_info()[0]))
+		logger.debug("Caught exception in {}: {}".format(inspect.stack()[0][3], sys.exc_info()[0]))
 		raise
-	logger.info("Exiting {}".format(inspect.stack()[0][3]))
+	logger.debug("Exiting {}".format(inspect.stack()[0][3]))
 	return None
 
 
@@ -314,7 +314,7 @@ def serialWrite(writeQueueSer, port):
 	- Only passes message content.  Checksum and CR/LF are removed.
 """
 def networkRead(readQueueNet, conn):
-	logger.info("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
+	logger.debug("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
 	
 	try:
 		lastdatatime = time.time()
@@ -364,9 +364,9 @@ def networkRead(readQueueNet, conn):
 	except KeyboardInterrupt:
 		pass
 	except:
-		logger.info("Caught exception in {}: {} ({})".format(inspect.stack()[0][3], sys.exc_info()[0], os.getpid()))
+		logger.debug("Caught exception in {}: {} ({})".format(inspect.stack()[0][3], sys.exc_info()[0], os.getpid()))
 		raise
-	logger.info("Exiting {} ({})".format(inspect.stack()[0][3], os.getpid()))
+	logger.debug("Exiting {} ({})".format(inspect.stack()[0][3], os.getpid()))
 	return None
 
 
@@ -375,7 +375,7 @@ def networkRead(readQueueNet, conn):
 	- Does not add checksum or CR/LF
 """
 def networkWrite(writeQueueNet, conn):
-	logger.info("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
+	logger.debug("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
 
 	try:
 		while True:
@@ -396,9 +396,9 @@ def networkWrite(writeQueueNet, conn):
 	except KeyboardInterrupt:
 		pass
 	except:
-		logger.info("Caught exception in {}: {} ({})".format(inspect.stack()[0][3], sys.exc_info()[0], os.getpid()))
+		logger.debug("Caught exception in {}: {} ({})".format(inspect.stack()[0][3], sys.exc_info()[0], os.getpid()))
 		raise
-	logger.info("Exiting {} ({})".format(inspect.stack()[0][3], os.getpid()))
+	logger.debug("Exiting {} ({})".format(inspect.stack()[0][3], os.getpid()))
 	return None
 
 
@@ -408,7 +408,7 @@ def networkWrite(writeQueueNet, conn):
 	Note: Don't send checksum or CR/LF, they're not needed.
 """
 def networkReadTest(readQueueSer):
-	logger.info("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
+	logger.debug("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
 
 	try:
 		sock = socket.socket()
@@ -434,9 +434,9 @@ def networkReadTest(readQueueSer):
 	except KeyboardInterrupt:
 		pass
 	except:
-		logger.info("Caught exception in {}: {}".format(inspect.stack()[0][3], sys.exc_info()[0]))
+		logger.debug("Caught exception in {}: {}".format(inspect.stack()[0][3], sys.exc_info()[0]))
 		raise
-	logger.info("Exiting {}".format(inspect.stack()[0][3]))
+	logger.debug("Exiting {}".format(inspect.stack()[0][3]))
 	return None
 
 
@@ -450,7 +450,7 @@ Process messages that arrive from DSC via the serial queue.
 Only runs while client is connected.
 """
 def msghandler_dsc(readQueueSer, writeQueueSer, writeQueueNet, zones):
-	logger.info("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
+	logger.debug("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
 
 	try:
 		while True:
@@ -475,7 +475,7 @@ def msghandler_dsc(readQueueSer, writeQueueSer, writeQueueNet, zones):
 				# All other messages relay to EVL
 				writeQueueNet.put(dsc_send(msg))
 
-				# Readable logging for panel-originated notifications
+				# Readable logging for panel-originated notifications.  Some liberty taken with deciding what's info vs. debug
 				# -- Panel
 				if (command == NOTIFY_ACK):
 					pass
@@ -485,14 +485,14 @@ def msghandler_dsc(readQueueSer, writeQueueSer, writeQueueNet, zones):
 					logger.info("Panel: code required.  Partition {}, {} digits".format(int(data[0]), int(data[1])))
 				# -- Zones
 				elif (command == NOTIFY_ZONE_OPEN):
-					logger.info("Panel: zone {} open".format(int(data)))
+					logger.debug("Panel: zone {} open".format(int(data)))
 				elif (command == NOTIFY_ZONE_RESTORED):
-					logger.info("Panel: zone {} restored".format(int(data)))
+					logger.debug("Panel: zone {} restored".format(int(data)))
 				# -- Partitions
 				elif (command == NOTIFY_PARTITION_READY):
-					logger.info("Panel: partition {} ready".format(int(data)))
+					logger.debug("Panel: partition {} ready".format(int(data)))
 				elif (command == NOTIFY_PARTITION_NOT_READY):
-					logger.info("Panel: partition {} not ready".format(int(data)))
+					logger.debug("Panel: partition {} not ready".format(int(data)))
 				elif (command == NOTIFY_PARTITION_BUSY):
 					logger.info("Panel: partition {} busy".format(int(data)))
 				elif (command == NOTIFY_PARTITION_TROUBLE):
@@ -500,7 +500,7 @@ def msghandler_dsc(readQueueSer, writeQueueSer, writeQueueNet, zones):
 				elif (command == NOTIFY_PARTITION_TROUBLE_RESTORED):
 					logger.info("Panel: partition {} trouble restored".format(int(data)))
 				elif (command == NOTIFY_PARTITION_ARMED):
-					logger.info("Panel: partition {} armed".format(int(data)))
+					logger.info("Panel: partition {} armed (mode {})".format(int(data[0]), int(data[1])))
 				elif (command == NOTIFY_PARTITION_IN_ALARM):
 					logger.info("Panel: partition {} in alarm".format(int(data)))
 				elif (command == NOTIFY_PARTITION_DISARMED):
@@ -509,6 +509,10 @@ def msghandler_dsc(readQueueSer, writeQueueSer, writeQueueNet, zones):
 					logger.info("Panel: partition {} doing exit delay".format(int(data)))
 				elif (command == NOTIFY_PARTITION_ENTRY_DELAY):
 					logger.info("Panel: partition {} doing entry delay".format(int(data)))
+				elif (command == NOTIFY_PARTITION_SPECIAL_CLOSING):
+					logger.info("Panel: partition {} special closing (armed)".format(int(data)))
+				elif (command == NOTIFY_PARTITION_USER_OPENING):
+					logger.debug("Panel: partition {} opened (disarmed) by user {}".format(int(data[0]), int(data[1:])))
 				# -- Everything else
 				else:
 					logger.info("Panel: {}:{}".format(command, data))
@@ -516,9 +520,9 @@ def msghandler_dsc(readQueueSer, writeQueueSer, writeQueueNet, zones):
 	except KeyboardInterrupt:
 		pass
 	except:
-		logger.info("Caught exception in {}: {} ({})".format(inspect.stack()[0][3], sys.exc_info()[0], os.getpid()))
+		logger.debug("Caught exception in {}: {} ({})".format(inspect.stack()[0][3], sys.exc_info()[0], os.getpid()))
 		raise
-	logger.info("Exiting {} ({})".format(inspect.stack()[0][3], os.getpid()))
+	logger.debug("Exiting {} ({})".format(inspect.stack()[0][3], os.getpid()))
 	return None
 
 
@@ -527,7 +531,7 @@ Process messages that arrive from the EVL client via the network queue
 Only runs while client is connected.
 """
 def msghandler_evl(readQueueNet, writeQueueNet, writeQueueSer, zones):
-	logger.info("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
+	logger.debug("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
 
 	try:
 		while True:
@@ -554,7 +558,7 @@ def msghandler_evl(readQueueNet, writeQueueNet, writeQueueSer, zones):
 					writeQueueNet.put(dsc_send(EVL_LOGIN_INTERACTION + "1"))
 				# Dump timers
 				elif (command == EVL_DUMP_TIMERS):
-					logger.info("Client: EVL dump timers")
+					logger.debug("Client: EVL dump timers")
 					timermsg = ""
 					for z in zones:
 						timermsg += z.getTimer()
@@ -576,7 +580,8 @@ def msghandler_evl(readQueueNet, writeQueueNet, writeQueueSer, zones):
 				# Code padding (most commands require 6 digits, 4-digit codes need two zeros appended.
 				# -- Partition disarm
 				elif (command == COMMAND_PARTITION_DISARM_CONTROL):
-					logger.info("Client: disarm partition {} with code {}".format(data[0], data[1:]))
+					#logger.info("Client: disarm partition {} with code {}".format(data[0], data[1:]))
+					logger.info("Client: disarm partition {} with code".format(data[0]))
 					disarm_zone = data[0]
 					disarm_code = data[1:]
 					if (len(disarm_code)  == 4):
@@ -584,7 +589,8 @@ def msghandler_evl(readQueueNet, writeQueueNet, writeQueueSer, zones):
 					writeQueueSer.put(dsc_send(command + disarm_zone + disarm_code))
 				# -- Code request
 				elif (command == COMMAND_CODE_SEND):
-					logger.info("Client: sending code {}".format(data))
+					#logger.info("Client: sending code {}".format(data))
+					logger.info("Client: sending code")
 					if (len(data)  == 4):
 						data += '00'
 					# DSC documentation is incorrect here.  Need to send partition number ahead of code.
@@ -593,7 +599,7 @@ def msghandler_evl(readQueueNet, writeQueueNet, writeQueueSer, zones):
 				# Customizations
 				# - Change "arm stay" to "arm zero entry delay"
 				elif (command == COMMAND_PARTITION_ARM_CONTROL_STAY):
-					logger.info("Client: arm partition zero entry")
+					logger.info("Client: arm partition (zero entry)")
 					writeQueueSer.put(dsc_send(COMMAND_PARTITION_ARM_CONTROL_ZERO_ENTRY + data))
 
 				# All other messages just relay to DSC as-is
@@ -602,18 +608,20 @@ def msghandler_evl(readQueueNet, writeQueueNet, writeQueueSer, zones):
 
 					# Nice logging for client-originated commands
 					if (command == COMMAND_POLL):
-						logger.info ("Client: Poll")
+						logger.debug ("Client: Poll")
 					elif (command == COMMAND_STATUS_REQUEST):
 						logger.info ("Client: Status request")
+					elif (command == COMMAND_PARTITION_ARM_CONTROL_AWAY):
+						logger.info ("Client: Arm partition (away)")
 					else:
 						logger.info("Client: {}:{}".format(command, data))
 
 	except KeyboardInterrupt:
 		pass
 	except:
-		logger.info("Caught exception in {}: {} ({})".format(inspect.stack()[0][3], sys.exc_info()[0], os.getpid()))
+		logger.debug("Caught exception in {}: {} ({})".format(inspect.stack()[0][3], sys.exc_info()[0], os.getpid()))
 		raise
-	logger.info("Exiting {} ({})".format(inspect.stack()[0][3], os.getpid()))
+	logger.debug("Exiting {} ({})".format(inspect.stack()[0][3], os.getpid()))
 	return None
 
 
@@ -804,10 +812,10 @@ if __name__ == "__main__":
 	except (KeyboardInterrupt, SystemExit):
 		raise
 	except:
-		logger.info("Caught exception in main: {}".format(sys.exc_info()[0]))
+		logger.debug("Caught exception in main: {}".format(sys.exc_info()[0]))
 		raise
 	finally:
-		logger.info("Terminating threads")
+		logger.debug("Terminating threads")
 		if 'p_serialread' in locals() and p_serialread.is_alive(): p_serialread.terminate()
 		if 'p_serialwrite' in locals() and p_serialwrite.is_alive(): p_serialwrite.terminate()
 		if 'p_networkread' in locals() and p_networkread.is_alive(): p_networkread.terminate()
