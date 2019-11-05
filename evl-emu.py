@@ -61,6 +61,7 @@ NOTIFY_ACK = '500'
 NOTIFY_ERROR = '501'
 NOTIFY_SYSTEM_ERROR = '502'
 NOTIFY_TIME_DATE_BCAST = '550'
+NOTIFY_RING_DETECTED = '560'
 NOTIFY_LABELS = '570'
 NOTIFY_BAUD_RATE_SET = '580'
 NOTIFY_ZONE_ALARM = '601'
@@ -261,6 +262,7 @@ def serialRead(readQueueSer, port):
 					if (msgchksum == dsc_checksum(msgdata)):
 						readQueueSer.put(msgdata)
 					else:
+						timestamp=time.strftime("[%H:%M:%S]", time.localtime())
 						logger.debug ("{} DSC In  > Checksum error".format(timestamp))
 					msgbuf = ''
 
@@ -269,7 +271,7 @@ def serialRead(readQueueSer, port):
 	except:
 		logger.debug("Caught exception in {}: {}".format(inspect.stack()[0][3], sys.exc_info()[0]))
 		raise
-	logger.debug("Exiting {}".format(inspect.stack()[0][3]))
+	logger.info("Exiting {}".format(inspect.stack()[0][3]))
 	return None
 
 
@@ -279,7 +281,7 @@ def serialRead(readQueueSer, port):
 	- Does not add checksum or CR/LF
 """
 def serialWrite(writeQueueSer, port):
-	logger.debug("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
+	logger.info("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
 
 	try:
 		while True:
@@ -299,7 +301,7 @@ def serialWrite(writeQueueSer, port):
 	except:
 		logger.debug("Caught exception in {}: {}".format(inspect.stack()[0][3], sys.exc_info()[0]))
 		raise
-	logger.debug("Exiting {}".format(inspect.stack()[0][3]))
+	logger.info("Exiting {}".format(inspect.stack()[0][3]))
 	return None
 
 
@@ -314,7 +316,7 @@ def serialWrite(writeQueueSer, port):
 	- Only passes message content.  Checksum and CR/LF are removed.
 """
 def networkRead(readQueueNet, conn):
-	logger.debug("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
+	logger.info("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
 	
 	try:
 		lastdatatime = time.time()
@@ -350,6 +352,7 @@ def networkRead(readQueueNet, conn):
 					if (msgchksum == dsc_checksum(msgdata)):
 						readQueueNet.put(msgdata)
 					else:
+						timestamp=time.strftime("[%H:%M:%S]", time.localtime())
 						logger.debug ("{} EVL In  > Checksum error".format(timestamp))
 					msgbuf = ''
 
@@ -366,7 +369,7 @@ def networkRead(readQueueNet, conn):
 	except:
 		logger.debug("Caught exception in {}: {} ({})".format(inspect.stack()[0][3], sys.exc_info()[0], os.getpid()))
 		raise
-	logger.debug("Exiting {} ({})".format(inspect.stack()[0][3], os.getpid()))
+	logger.info("Exiting {} ({})".format(inspect.stack()[0][3], os.getpid()))
 	return None
 
 
@@ -375,7 +378,7 @@ def networkRead(readQueueNet, conn):
 	- Does not add checksum or CR/LF
 """
 def networkWrite(writeQueueNet, conn):
-	logger.debug("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
+	logger.info("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
 
 	try:
 		while True:
@@ -398,7 +401,7 @@ def networkWrite(writeQueueNet, conn):
 	except:
 		logger.debug("Caught exception in {}: {} ({})".format(inspect.stack()[0][3], sys.exc_info()[0], os.getpid()))
 		raise
-	logger.debug("Exiting {} ({})".format(inspect.stack()[0][3], os.getpid()))
+	logger.info("Exiting {} ({})".format(inspect.stack()[0][3], os.getpid()))
 	return None
 
 
@@ -408,7 +411,7 @@ def networkWrite(writeQueueNet, conn):
 	Note: Don't send checksum or CR/LF, they're not needed.
 """
 def networkReadTest(readQueueSer):
-	logger.debug("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
+	logger.info("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
 
 	try:
 		sock = socket.socket()
@@ -436,7 +439,7 @@ def networkReadTest(readQueueSer):
 	except:
 		logger.debug("Caught exception in {}: {}".format(inspect.stack()[0][3], sys.exc_info()[0]))
 		raise
-	logger.debug("Exiting {}".format(inspect.stack()[0][3]))
+	logger.info("Exiting {}".format(inspect.stack()[0][3]))
 	return None
 
 
@@ -450,7 +453,7 @@ Process messages that arrive from DSC via the serial queue.
 Only runs while client is connected.
 """
 def msghandler_dsc(readQueueSer, writeQueueSer, writeQueueNet, zones):
-	logger.debug("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
+	logger.info("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
 
 	try:
 		while True:
@@ -478,21 +481,19 @@ def msghandler_dsc(readQueueSer, writeQueueSer, writeQueueNet, zones):
 				# Readable logging for panel-originated notifications.  Some liberty taken with deciding what's info vs. debug
 				# -- Panel
 				if (command == NOTIFY_ACK):
-					pass
+					logger.info ("Panel: ack {}".format(data))
 				elif (command == NOTIFY_VERSION):
 					logger.info("Panel: version {}".format(data))
 				elif (command == NOTIFY_CODE_REQUIRED):
 					logger.info("Panel: code required.  Partition {}, {} digits".format(int(data[0]), int(data[1])))
+				elif (command == NOTIFY_RING_DETECTED):
+					logger.info("Panel: ring detected")
 				# -- Zones
 				elif (command == NOTIFY_ZONE_OPEN):
 					logger.debug("Panel: zone {} open".format(int(data)))
 				elif (command == NOTIFY_ZONE_RESTORED):
 					logger.debug("Panel: zone {} restored".format(int(data)))
 				# -- Partitions
-				elif (command == NOTIFY_PARTITION_READY):
-					logger.debug("Panel: partition {} ready".format(int(data)))
-				elif (command == NOTIFY_PARTITION_NOT_READY):
-					logger.debug("Panel: partition {} not ready".format(int(data)))
 				elif (command == NOTIFY_PARTITION_BUSY):
 					logger.info("Panel: partition {} busy".format(int(data)))
 				elif (command == NOTIFY_PARTITION_TROUBLE):
@@ -511,8 +512,15 @@ def msghandler_dsc(readQueueSer, writeQueueSer, writeQueueNet, zones):
 					logger.info("Panel: partition {} doing entry delay".format(int(data)))
 				elif (command == NOTIFY_PARTITION_SPECIAL_CLOSING):
 					logger.info("Panel: partition {} special closing (armed)".format(int(data)))
+				# (debug messages)
+				elif (command == NOTIFY_PARTITION_READY):
+					logger.debug("Panel: partition {} ready".format(int(data)))
+				elif (command == NOTIFY_PARTITION_NOT_READY):
+					logger.debug("Panel: partition {} not ready".format(int(data)))
 				elif (command == NOTIFY_PARTITION_USER_OPENING):
 					logger.debug("Panel: partition {} opened (disarmed) by user {}".format(int(data[0]), int(data[1:])))
+				elif (command == NOTIFY_PARTITION_USER_CLOSING):
+					logger.debug("Panel: partition {} armed by user {}".format(int(data[0]), int(data[1:])))
 				# -- Everything else
 				else:
 					logger.info("Panel: {}:{}".format(command, data))
@@ -522,7 +530,7 @@ def msghandler_dsc(readQueueSer, writeQueueSer, writeQueueNet, zones):
 	except:
 		logger.debug("Caught exception in {}: {} ({})".format(inspect.stack()[0][3], sys.exc_info()[0], os.getpid()))
 		raise
-	logger.debug("Exiting {} ({})".format(inspect.stack()[0][3], os.getpid()))
+	logger.info("Exiting {} ({})".format(inspect.stack()[0][3], os.getpid()))
 	return None
 
 
@@ -531,7 +539,7 @@ Process messages that arrive from the EVL client via the network queue
 Only runs while client is connected.
 """
 def msghandler_evl(readQueueNet, writeQueueNet, writeQueueSer, zones):
-	logger.debug("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
+	logger.info("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
 
 	try:
 		while True:
@@ -558,7 +566,7 @@ def msghandler_evl(readQueueNet, writeQueueNet, writeQueueSer, zones):
 					writeQueueNet.put(dsc_send(EVL_LOGIN_INTERACTION + "1"))
 				# Dump timers
 				elif (command == EVL_DUMP_TIMERS):
-					logger.debug("Client: EVL dump timers")
+					logger.info("Client: EVL refresh zone timers")
 					timermsg = ""
 					for z in zones:
 						timermsg += z.getTimer()
@@ -608,7 +616,7 @@ def msghandler_evl(readQueueNet, writeQueueNet, writeQueueSer, zones):
 
 					# Nice logging for client-originated commands
 					if (command == COMMAND_POLL):
-						logger.debug ("Client: Poll")
+						logger.info ("Client: Poll/Keepalive")
 					elif (command == COMMAND_STATUS_REQUEST):
 						logger.info ("Client: Status request")
 					elif (command == COMMAND_PARTITION_ARM_CONTROL_AWAY):
@@ -621,7 +629,7 @@ def msghandler_evl(readQueueNet, writeQueueNet, writeQueueSer, zones):
 	except:
 		logger.debug("Caught exception in {}: {} ({})".format(inspect.stack()[0][3], sys.exc_info()[0], os.getpid()))
 		raise
-	logger.debug("Exiting {} ({})".format(inspect.stack()[0][3], os.getpid()))
+	logger.info("Exiting {} ({})".format(inspect.stack()[0][3], os.getpid()))
 	return None
 
 
@@ -703,6 +711,7 @@ if __name__ == "__main__":
 		logger.addHandler(ch)
 
 	try:
+		logger.info("-------------------- STARTUP --------------------")
 		logger.warning("Startup Process: {}".format(os.getpid()))
 
 		# Open serial port
