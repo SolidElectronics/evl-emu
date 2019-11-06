@@ -17,14 +17,14 @@ Note: This requires the ‘pyserial’ module for interacting with the serial po
 cd $HOME
 git clone https://github.com/SolidElectronics/evl-emu.git
 ```
-Change the baud rate and port in evl-emu.py to match your device
-Change 'host' in the HomeAssistant envisalink.yaml to the emulator system's IP address.
-Replace '/home/hass' in the examples below with the correct path for your system.
+- Change the baud rate and port in evl-emu.py to match your device
+- Change 'host' in the HomeAssistant envisalink.yaml to the emulator system's IP address.
+- Replace '/home/hass' in the examples below with the correct path for your system.
 
 #### rc.local
 For systems that have an rc.local file, use this one-liner to start the service.
 ```
-/bin/su -c '/home/hass/evl-emu/evl-emu.py >/dev/null 2>&1' pi &
+/bin/su -c '/home/hass/evl-emu/evl-emu.py >/dev/null 2>&1' hass &
 ```
 
 #### systemd
