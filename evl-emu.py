@@ -621,6 +621,8 @@ def msghandler_evl(readQueueNet, writeQueueNet, writeQueueSer, zones):
 						logger.info ("Client: Status request")
 					elif (command == COMMAND_PARTITION_ARM_CONTROL_AWAY):
 						logger.info ("Client: Arm partition (away)")
+					elif (command == COMMAND_SET_TIME_DATE):
+						logger.info ("Client: Set time on panel (hhmmMMDDYY): {}".format(data))
 					else:
 						logger.info("Client: {}:{}".format(command, data))
 
@@ -748,6 +750,12 @@ if __name__ == "__main__":
 		# Startup test network connection
 		#p_networkreadtest = multiprocessing.Process(target=networkReadTest, args=(readQueueSer, ))
 		#p_networkreadtest.start()
+
+		# Initialize panel
+		# - Disable timestamps
+		writeQueueSer.put(dsc_send(COMMAND_TIME_STAMP_CONTROL + '0'))
+		# - Disable time/date broadcast messages
+		writeQueueSer.put(dsc_send(COMMAND_TIME_DATE_BCAST_CONTROL + '0'))
 
 		# Setup a network socket and listen for connections
 		sock.bind((NETWORK_HOST, NETWORK_PORT))

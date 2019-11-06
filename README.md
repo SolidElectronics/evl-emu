@@ -4,38 +4,57 @@ This project is designed to allow Home Assistant to integrate with a DSC IT-100 
 
 Fair warning, I haven’t tested this extensively and I offer no guarantees it will work, but I thought I’d share it in case it’s useful to someone. It’s written using the Python multiprocessing libraries so it spawns several processes that each perform one task. Ideally this would be rewritten in a cleaner way with asyncio but that’s currently beyond my ability.
 
-I have this running under Raspbian on a rPi1 with the DSC panel connected via a serial-USB adapter at /dev/ttyUSB0, and a Home Asssistant instance inside Docker on another server.  You might want to use a udev rule or /dev/serial/by-id/whatever if you have multiple USB/Serial interfaces to ensure the correct one is used.
+I have this running under CentOS and Raspbian with the DSC panel connected via a serial-USB adapter at /dev/it100, and a Home Asssistant instance inside Docker on another server.  You might want to use a udev rule or /dev/serial/by-id/whatever if you have multiple USB/Serial interfaces to ensure the correct one is used.
 
 Note: This requires the ‘pyserial’ module for interacting with the serial port.
 
-
 ---
-### Setup on Raspbian (different server than HA is running on)
+### Emulator Setup
 
 #### Clone this repo
-
-Assuming user pi on Raspbian here.
 
 ```
 cd $HOME
 git clone https://github.com/SolidElectronics/evl-emu.git
 ```
+Change the baud rate and port in evl-emu.py to match your device
+Change 'host' in the HomeAssistant envisalink.yaml to the emulator system's IP address.
+Replace '/home/hass' in the examples below with the correct path for your system.
 
 #### rc.local
+For systems that have an rc.local file, use this one-liner to start the service.
 ```
-/bin/su -c '/home/pi/evl-emu/evl-emu.py >/dev/null 2>&1' pi &
-```
-Change 'host' in envisalink.yaml to this system's IP address
-
----
-### Setup on Hassbian (same server as HA)
-
-#### rc.local
-```
-/bin/su -c '/home/homeassistant/.homeassistant/evl-emu.py >/dev/null 2>&1' homeassistant
+/bin/su -c '/home/hass/evl-emu/evl-emu.py >/dev/null 2>&1' pi &
 ```
 
-Leave 'host' in envisalink.yaml as 127.0.0.1
+#### systemd
+For systems using systemd, use this service file.
+
+```
+cat <<EOF > /usr/lib/systemd/system/evl-emu.service
+[Unit]
+Description=Envisalink emulator
+Wants=network.target
+After=network.target
+
+[Service]
+User=hass
+Group=hass
+Type=simple
+PIDFile=/run/evl-emu.pid
+ExecStart=/home/hass/evl-emu/evl-emu.py --info
+ExecStop=/usr/bin/rm /run/evl-emu.pid
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+```
+
+
 
 ---
 ### Home Assistant Setup
@@ -51,7 +70,7 @@ I only included four zones here, and it probably only works with one partition.
 
 The user_name and password are not used, but need to be present in the config file.
 ```
-  host: 127.0.0.1
+  host: 1.2.3.4
   panel_type: DSC
   user_name: user
   password: pass
