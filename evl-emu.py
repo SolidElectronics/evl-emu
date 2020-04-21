@@ -758,6 +758,7 @@ if __name__ == "__main__":
 		writeQueueSer.put(dsc_send(COMMAND_TIME_DATE_BCAST_CONTROL + '0'))
 
 		# Setup a network socket and listen for connections
+		sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 		sock.bind((NETWORK_HOST, NETWORK_PORT))
 		sock.setblocking(1)
 		sock.listen(5)
