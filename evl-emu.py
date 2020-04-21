@@ -695,7 +695,7 @@ if __name__ == "__main__":
 	logger.setLevel(logging.WARNING)
 
 	# File log options (Just put in home directory for now)
-	logpath = str(Path.home()) + '/evl-emu.log'
+	logpath = str(os.path.expanduser('~')) + '/evl-emu.log'
 	fh = logging.FileHandler(logpath)
 	fh.setFormatter(fileformatter)
 	logger.addHandler(fh)
@@ -734,7 +734,7 @@ if __name__ == "__main__":
 		zones = mgr.list()
 
 		# Allocate zone objects
-		for z in range(64):
+		for z in range(DEFAULT_ZONES):
 			zones.append(dsc_zone(zone=z))
 
 		# Create and start serial I/O handlers
