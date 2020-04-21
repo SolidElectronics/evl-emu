@@ -558,6 +558,8 @@ def msghandler_evl(readQueueNet, writeQueueNet, writeQueueSer, zones):
 				# This needs to intercept EVL-specific messages and not send those to the panel
 				# --------------------------------------------------------------------------------
 
+				writeQueueNet.put(dsc_send(NOTIFY_ACK + command))
+
 				timestamp=time.strftime("[%H:%M:%S]", time.localtime())
 				# Login
 				# - This shouldn't generally happen since login is handled before this starts up.
