@@ -558,6 +558,8 @@ def msghandler_evl(readQueueNet, writeQueueNet, writeQueueSer, zones):
 				# This needs to intercept EVL-specific messages and not send those to the panel
 				# --------------------------------------------------------------------------------
 
+				writeQueueNet.put(dsc_send(NOTIFY_ACK + command))
+
 				timestamp=time.strftime("[%H:%M:%S]", time.localtime())
 				# Login
 				# - This shouldn't generally happen since login is handled before this starts up.
@@ -695,7 +697,7 @@ if __name__ == "__main__":
 	logger.setLevel(logging.WARNING)
 
 	# File log options (Just put in home directory for now)
-	logpath = str(Path.home()) + '/evl-emu.log'
+	logpath = str(os.path.expanduser('~')) + '/evl-emu.log'
 	fh = logging.FileHandler(logpath)
 	fh.setFormatter(fileformatter)
 	logger.addHandler(fh)
@@ -734,7 +736,7 @@ if __name__ == "__main__":
 		zones = mgr.list()
 
 		# Allocate zone objects
-		for z in range(64):
+		for z in range(DEFAULT_ZONES):
 			zones.append(dsc_zone(zone=z))
 
 		# Create and start serial I/O handlers
@@ -758,6 +760,7 @@ if __name__ == "__main__":
 		writeQueueSer.put(dsc_send(COMMAND_TIME_DATE_BCAST_CONTROL + '0'))
 
 		# Setup a network socket and listen for connections
+		sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 		sock.bind((NETWORK_HOST, NETWORK_PORT))
 		sock.setblocking(1)
 		sock.listen(5)
