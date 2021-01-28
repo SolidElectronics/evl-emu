@@ -33,7 +33,13 @@ NETWORK_PORT = 4025
 ZONE_OPEN = 0
 ZONE_CLOSED = 1
 
-
+# Option to enable PC5401 specific commands - PC5401 is an older version of IT100 with less functionality, but the protocol is almost identical
+# The major difference is that PC5401 dose not have Virtual Keypad support.
+PC5401 = False
+# Option to remap the Stay arm command to Zero Entry arm command
+REMAP_STAY_TO_ZEROENTRY = True
+# Send Code bug - Some firmware version of IT100 modules  have a bug in the "Code Send" command, so the partition number also has to be included in the telegram.
+SEND_CODE_BUG = True
 
 # --------------------------------------------------------------------------------
 #	DSC Protcol definitions
@@ -48,6 +54,7 @@ COMMAND_PARTITION_ARM_CONTROL_STAY = '031'
 COMMAND_PARTITION_ARM_CONTROL_ZERO_ENTRY = '032'
 COMMAND_PARTITION_ARM_CONTROL_WITH_CODE = '033'
 COMMAND_PARTITION_DISARM_CONTROL = '040'
+COMMAND_DESCRIPTIVE_ARMING_CONTROL = '050'
 COMMAND_TIME_STAMP_CONTROL = '055'
 COMMAND_TIME_DATE_BCAST_CONTROL = '056'
 COMMAND_TEMPERATURE_BCAST_CONTROL = '057'
@@ -485,7 +492,10 @@ def msghandler_dsc(readQueueSer, writeQueueSer, writeQueueNet, zones):
 				elif (command == NOTIFY_VERSION):
 					logger.info("Panel: version {}".format(data))
 				elif (command == NOTIFY_CODE_REQUIRED):
-					logger.info("Panel: code required.  Partition {}, {} digits".format(int(data[0]), int(data[1])))
+					if(PC5401 == True):
+						logger.info("Panel: code required")
+					else:
+						logger.info("Panel: code required.  Partition {}, {} digits".format(int(data[0]), int(data[1])))
 				elif (command == NOTIFY_RING_DETECTED):
 					logger.info("Panel: ring detected")
 				# -- Zones
@@ -603,15 +613,19 @@ def msghandler_evl(readQueueNet, writeQueueNet, writeQueueSer, zones):
 					logger.info("Client: sending code")
 					if (len(data)  == 4):
 						data += '00'
-					# DSC documentation is incorrect here.  Need to send partition number ahead of code.
-					# Ideally pyenvisalink would do this correctly by remembering the partition from the '900'.
-					writeQueueSer.put(dsc_send(command + '1' + data))
+					if (SEND_CODE_BUG == True):
+						# Bug in certain DSC IT100 modules. Need to send partition number ahead of code.
+						# Ideally pyenvisalink would do this correctly by remembering the partition from the '900'.
+						writeQueueSer.put(dsc_send(command + '1' + data))
 				# Customizations
 				# - Change "arm stay" to "arm zero entry delay"
 				elif (command == COMMAND_PARTITION_ARM_CONTROL_STAY):
-					logger.info("Client: arm partition (zero entry)")
-					writeQueueSer.put(dsc_send(COMMAND_PARTITION_ARM_CONTROL_ZERO_ENTRY + data))
-
+					if (REMAP_STAY_TO_ZEROENTRY == True):
+						logger.info("Client: arm partition (zero entry)")
+						writeQueueSer.put(dsc_send(COMMAND_PARTITION_ARM_CONTROL_ZERO_ENTRY + data))
+					else:
+						logger.info("Client: arm partition (Stay)")
+						writeQueueSer.put(dsc_send(COMMAND_PARTITION_ARM_CONTROL_STAY + data))
 				# All other messages just relay to DSC as-is
 				else:
 					writeQueueSer.put(dsc_send(msg))
@@ -758,7 +772,9 @@ if __name__ == "__main__":
 		writeQueueSer.put(dsc_send(COMMAND_TIME_STAMP_CONTROL + '0'))
 		# - Disable time/date broadcast messages
 		writeQueueSer.put(dsc_send(COMMAND_TIME_DATE_BCAST_CONTROL + '0'))
-
+		if (PC5401 == True):
+			# - Enable descriptive arming control
+			writeQueueSer.put(dsc_send(COMMAND_DESCRIPTIVE_ARMING_CONTROL + '1'))
 		# Setup a network socket and listen for connections
 		sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 		sock.bind((NETWORK_HOST, NETWORK_PORT))
