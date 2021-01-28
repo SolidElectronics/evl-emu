@@ -617,6 +617,8 @@ def msghandler_evl(readQueueNet, writeQueueNet, writeQueueSer, zones):
 						# Bug in certain DSC IT100 modules. Need to send partition number ahead of code.
 						# Ideally pyenvisalink would do this correctly by remembering the partition from the '900'.
 						writeQueueSer.put(dsc_send(command + '1' + data))
+					else:
+						writeQueueSer.put(dsc_send(command + data))
 				# Customizations
 				# - Change "arm stay" to "arm zero entry delay"
 				elif (command == COMMAND_PARTITION_ARM_CONTROL_STAY):
