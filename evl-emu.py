@@ -36,10 +36,10 @@ ZONE_CLOSED = 1
 # Option to enable PC5401 specific commands - PC5401 is an older version of IT100 with less functionality, but the protocol is almost identical
 # The major difference is that PC5401 dose not have Virtual Keypad support.
 PC5401 = False
-# Option to remap the Stay arm command to Zero Entry arm command
+# Option to remap the Stay arem command to Zero Entry arm command
 REMAP_STAY_TO_ZEROENTRY = True
-# Send Code bug - Some firmware version of IT100 modules  have a bug in the "Code Send" command, so the partition number also has to be included in the telegram.
-SEND_CODE_BUG = True
+#the length of the code to be used at COMMAND_CODE_SEND. The requiered length mey wary on panel configuration/type 
+CODE_LENGTH = 4
 
 # --------------------------------------------------------------------------------
 #	DSC Protcol definitions
@@ -459,7 +459,7 @@ def networkReadTest(readQueueSer):
 Process messages that arrive from DSC via the serial queue.
 Only runs while client is connected.
 """
-def msghandler_dsc(readQueueSer, writeQueueSer, writeQueueNet, zones):
+def msghandler_dsc(readQueueSer, writeQueueSer, writeQueueNet, zones, curent_part):
 	logger.info("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
 
 	try:
@@ -492,10 +492,11 @@ def msghandler_dsc(readQueueSer, writeQueueSer, writeQueueNet, zones):
 				elif (command == NOTIFY_VERSION):
 					logger.info("Panel: version {}".format(data))
 				elif (command == NOTIFY_CODE_REQUIRED):
-					if(PC5401 == True):
-						logger.info("Panel: code required")
+					if (len(data) > 1):
+						logger.info("Panel: code required. Partition {}, {} digits".format(int(data[0]), int(data[1])))
+						curent_part.set(data[0])
 					else:
-						logger.info("Panel: code required.  Partition {}, {} digits".format(int(data[0]), int(data[1])))
+						logger.info("Panel: code required.")
 				elif (command == NOTIFY_RING_DETECTED):
 					logger.info("Panel: ring detected")
 				# -- Zones
@@ -548,7 +549,7 @@ def msghandler_dsc(readQueueSer, writeQueueSer, writeQueueNet, zones):
 Process messages that arrive from the EVL client via the network queue
 Only runs while client is connected.
 """
-def msghandler_evl(readQueueNet, writeQueueNet, writeQueueSer, zones):
+def msghandler_evl(readQueueNet, writeQueueNet, writeQueueSer, zones, curent_part):
 	logger.info("Starting {} ({})".format(inspect.stack()[0][3], os.getpid()))
 
 	try:
@@ -611,14 +612,12 @@ def msghandler_evl(readQueueNet, writeQueueNet, writeQueueSer, zones):
 				elif (command == COMMAND_CODE_SEND):
 					#logger.info("Client: sending code {}".format(data))
 					logger.info("Client: sending code")
-					if (len(data)  == 4):
+					if (CODE_LENGTH == 6) and (len(data)  == 4):
 						data += '00'
-					if (SEND_CODE_BUG == True):
-						# Bug in certain DSC IT100 modules. Need to send partition number ahead of code.
-						# Ideally pyenvisalink would do this correctly by remembering the partition from the '900'.
-						writeQueueSer.put(dsc_send(command + '1' + data))
-					else:
-						writeQueueSer.put(dsc_send(command + data))
+					if curent_part.get() != '0':
+						data = curent_part.get() + data
+						curent_part.set('0')
+					writeQueueSer.put(dsc_send(command + data))
 				# Customizations
 				# - Change "arm stay" to "arm zero entry delay"
 				elif (command == COMMAND_PARTITION_ARM_CONTROL_STAY):
@@ -750,6 +749,7 @@ if __name__ == "__main__":
 		# Create shared data space
 		mgr = multiprocessing.Manager()
 		zones = mgr.list()
+		curent_part = mgr.Value(str,'0')
 
 		# Allocate zone objects
 		for z in range(DEFAULT_ZONES):
@@ -833,8 +833,8 @@ if __name__ == "__main__":
 
 			# Create and start message handlers
 			logger.debug ("Creating new p_msghandler_dsc and p_msghandler_evl")
-			p_msghandler_dsc = multiprocessing.Process(target=msghandler_dsc, args=(readQueueSer, writeQueueSer, writeQueueNet, zones))
-			p_msghandler_evl = multiprocessing.Process(target=msghandler_evl, args=(readQueueNet, writeQueueNet, writeQueueSer, zones))
+			p_msghandler_dsc = multiprocessing.Process(target=msghandler_dsc, args=(readQueueSer, writeQueueSer, writeQueueNet, zones, curent_part))
+			p_msghandler_evl = multiprocessing.Process(target=msghandler_evl, args=(readQueueNet, writeQueueNet, writeQueueSer, zones, curent_part))
 			p_msghandler_dsc.start()
 			p_msghandler_evl.start()
 
