@@ -250,9 +250,13 @@ def serialRead(readQueueSer, port):
 				logger.info ("ERROR: flushing stale data from receive buffer {}".format(msgbuf))
 				msgbuf=''
 
-			# Add each byte of received data to message buffer			
-			msgbuf += read_byte.decode('ASCII')
-			lastdatatime = time.time()
+			# Add each byte of received data to message buffer
+			# Use 'try' block to not explode on non-ASCII data.
+			try:
+				lastdatatime = time.time()
+				msgbuf += read_byte.decode('ASCII')
+			except:
+				logger.error("Received invalid character in string \'{}\'".format(msgbuf[0:msgbuf.__len__()]))
 
 			# If we have enough characters for a full message, start checking for CR/LR terminator
 			if (msgbuf.__len__() >= 7):
