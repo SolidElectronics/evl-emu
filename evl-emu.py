@@ -242,7 +242,13 @@ def serialRead(readQueueSer, port):
 		msgbuf = ''
 		
 		while True:
-			read_byte = port.read(1)
+			try:
+				if (port.is_open):
+					read_byte = port.read(1)
+				else:
+					logger.error("Serial port disconnected")
+			except:
+				raise IOError('Lost access to serial port')
 
 			# If there is a long delay between messages while data is in the buffer, assume something went wrong and throw out the old data
 			thisdatatime = time.time()
@@ -250,13 +256,14 @@ def serialRead(readQueueSer, port):
 				logger.info ("ERROR: flushing stale data from receive buffer {}".format(msgbuf))
 				msgbuf=''
 
-			# Add each byte of received data to message buffer
-			# Use 'try' block to not explode on non-ASCII data.
-			try:
-				lastdatatime = time.time()
+#			if (bytes(read_byte)[0] >= 128):
+#				logger.error("Received invalid character in string {}".format(msgbuf))
+#			if (not read_byte.isascii()):
+			if (bytes(read_byte)[0] < 128):
 				msgbuf += read_byte.decode('ASCII')
-			except:
-				logger.error("Received invalid character in string \'{}\'".format(msgbuf[0:msgbuf.__len__()]))
+				lastdatatime = time.time()
+			else:
+				logger.error("Received invalid character in string {}".format(msgbuf))
 
 			# If we have enough characters for a full message, start checking for CR/LR terminator
 			if (msgbuf.__len__() >= 7):
@@ -573,7 +580,9 @@ def msghandler_evl(readQueueNet, writeQueueNet, writeQueueSer, zones, curent_par
 				# This needs to intercept EVL-specific messages and not send those to the panel
 				# --------------------------------------------------------------------------------
 
-				writeQueueNet.put(dsc_send(NOTIFY_ACK + command))
+				# Send ACK message unless we're specifically polling the panel, in which case the panel will repond on its own.
+				if (command != COMMAND_POLL):
+					writeQueueNet.put(dsc_send(NOTIFY_ACK + command))
 
 				timestamp=time.strftime("[%H:%M:%S]", time.localtime())
 				# Login
